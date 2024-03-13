@@ -1,3 +1,4 @@
+// Import necessary dependencies and modules
 #[macro_use]
 extern crate serde;
 use candid::{Decode, Encode};
@@ -55,75 +56,24 @@ struct TaskAssignment {
     task_id: u64,
 }
 
-// Implement serialization and deserialization for Project
-impl Storable for Project {
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+// Implement serialization and deserialization for Project, Task, User, and TaskAssignment
+impl<T: Serialize + for<'de> Deserialize<'de> + Clone> Storable for T {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Owned(Encode!(self).unwrap())
     }
 
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
         Decode!(bytes.as_ref(), Self).unwrap()
     }
 }
 
-// Implement bounds for Project serialization
-impl BoundedStorable for Project {
+// Implement bounds for serialization
+impl<T: Serialize + for<'de> Deserialize<'de> + Clone> BoundedStorable for T {
     const MAX_SIZE: u32 = 1024;
     const IS_FIXED_SIZE: bool = false;
 }
 
-// Implement serialization and deserialization for Task
-impl Storable for Task {
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        Cow::Owned(Encode!(self).unwrap())
-    }
-
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        Decode!(bytes.as_ref(), Self).unwrap()
-    }
-}
-
-// Implement bounds for Task serialization
-impl BoundedStorable for Task {
-    const MAX_SIZE: u32 = 1024;
-    const IS_FIXED_SIZE: bool = false;
-}
-
-// Implement serialization and deserialization for User
-impl Storable for User {
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        Cow::Owned(Encode!(self).unwrap())
-    }
-
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        Decode!(bytes.as_ref(), Self).unwrap()
-    }
-}
-
-// Implement bounds for User serialization
-impl BoundedStorable for User {
-    const MAX_SIZE: u32 = 1024;
-    const IS_FIXED_SIZE: bool = false;
-}
-
-// Implement serialization and deserialization for TaskAssignment
-impl Storable for TaskAssignment {
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        Cow::Owned(Encode!(self).unwrap())
-    }
-
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        Decode!(bytes.as_ref(), Self).unwrap()
-    }
-}
-
-// Implement bounds for TaskAssignment serialization
-impl BoundedStorable for TaskAssignment {
-    const MAX_SIZE: u32 = 1024;
-    const IS_FIXED_SIZE: bool = false;
-}
-
-// Thread-local storage for memory management, ID counter, project storage, task storage, user storage, and task assignment storage
+// Thread-local storage for memory management, ID counter, and entity storage
 thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
         MemoryManager::init(DefaultMemoryImpl::default())
@@ -165,12 +115,11 @@ enum Error {
 // Implement CRUD operations for projects
 #[ic_cdk::update]
 fn add_project(name: String, description: String, start_date: u64, due_date: u64) -> Result<Project, Error> {
-    let id = ID_COUNTER
-        .with(|counter| {
-            let current_value = *counter.borrow().get();
-            counter.borrow_mut().set(current_value + 1)
-        })
-        .expect("Cannot increment id counter");
+    // Increment project ID counter
+    let id = ID_COUNTER.with(|counter| {
+        let current_value = *counter.borrow().get();
+        counter.borrow_mut().set(current_value + 1)
+    }).map_err(|_| Error::InvalidInput { msg: "Cannot increment id counter".to_string() })?;
 
     let project = Project {
         id,
@@ -180,12 +129,14 @@ fn add_project(name: String, description: String, start_date: u64, due_date: u64
         due_date,
     };
 
+    // Insert project into storage
     PROJECT_STORAGE.with(|storage| storage.borrow_mut().insert(id, project.clone()));
     Ok(project)
 }
 
 #[ic_cdk::update]
 fn delete_project(id: u64) -> Result<(), Error> {
+    // Remove project from storage
     match PROJECT_STORAGE.with(|storage| storage.borrow_mut().remove(&id)) {
         Some(_) => Ok(()),
         None => Err(Error::NotFound {
