@@ -1,4 +1,3 @@
-###project management system documentation
 ### Overview
 The Project Management System is a robust Rust-based application engineered to simplify project and task administration for teams. It furnishes a suite of functionalities enabling the creation, modification, and deletion of projects, tasks, and user profiles. Additionally, it offers features for assigning tasks to users and supervising task statuses, fostering seamless collaboration and productivity within teams.
 
