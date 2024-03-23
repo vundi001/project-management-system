@@ -162,9 +162,16 @@ enum Error {
     InvalidInput { msg: String },
 }
 
-// Implement CRUD operations for projects
+
 #[ic_cdk::update]
 fn add_project(name: String, description: String, start_date: u64, due_date: u64) -> Result<Project, Error> {
+    // Ensure input fields are not empty
+    if name.is_empty() || description.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Name or description cannot be empty".to_string(),
+        });
+    }
+
     let id = ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
@@ -185,18 +192,14 @@ fn add_project(name: String, description: String, start_date: u64, due_date: u64
 }
 
 #[ic_cdk::update]
-fn delete_project(id: u64) -> Result<(), Error> {
-    match PROJECT_STORAGE.with(|storage| storage.borrow_mut().remove(&id)) {
-        Some(_) => Ok(()),
-        None => Err(Error::NotFound {
-            msg: format!("Project with id={} not found", id),
-        }),
-    }
-}
-
-// Implement CRUD operations for tasks
-#[ic_cdk::update]
 fn add_task(project_id: u64, name: String, description: String, start_date: u64, due_date: u64, assigned_users: Vec<u64>) -> Result<Task, Error> {
+    // Ensure input fields are not empty
+    if name.is_empty() || description.is_empty() || assigned_users.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Name, description, or assigned_users cannot be empty".to_string(),
+        });
+    }
+
     let id = ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
@@ -220,18 +223,14 @@ fn add_task(project_id: u64, name: String, description: String, start_date: u64,
 }
 
 #[ic_cdk::update]
-fn delete_task(id: u64) -> Result<(), Error> {
-    match TASK_STORAGE.with(|storage| storage.borrow_mut().remove(&id)) {
-        Some(_) => Ok(()),
-        None => Err(Error::NotFound {
-            msg: format!("Task with id={} not found", id),
-        }),
-    }
-}
-
-// Implement CRUD operations for users
-#[ic_cdk::update]
 fn add_user(name: String) -> Result<User, Error> {
+    // Ensure input fields are not empty
+    if name.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Name cannot be empty".to_string(),
+        });
+    }
+
     let id = ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
@@ -247,6 +246,127 @@ fn add_user(name: String) -> Result<User, Error> {
     USER_STORAGE.with(|storage| storage.borrow_mut().insert(id, user.clone()));
     Ok(user)
 }
+
+#[ic_cdk::update]
+fn update_project(id: u64, name: String, description: String, start_date: u64, due_date: u64) -> Result<Project, Error> {
+    // Ensure input fields are not empty
+    if name.is_empty() || description.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Name or description cannot be empty".to_string(),
+        });
+    }
+
+    match PROJECT_STORAGE.with(|storage| {
+        let mut storage = storage.borrow_mut();
+        if let Some(project) = storage.get(&id) {
+            // Create a cloned copy of the project to update
+            let mut updated_project = project.clone();
+            // Update the project fields
+            updated_project.name = name;
+            updated_project.description = description;
+            updated_project.start_date = start_date;
+            updated_project.due_date = due_date;
+            // Replace the old project with the updated one
+            storage.insert(id, updated_project.clone());
+            Ok(updated_project)
+        } else {
+            Err(Error::NotFound {
+                msg: format!("Project with id={} not found", id),
+            })
+        }
+    }) {
+        Ok(project) => Ok(project),
+        Err(e) => Err(e),
+    }
+}
+
+#[ic_cdk::update]
+fn update_task(id: u64, name: String, description: String, start_date: u64, due_date: u64, status: TaskStatus, assigned_users: Vec<u64>) -> Result<Task, Error> {
+    // Ensure input fields are not empty
+    if name.is_empty() || description.is_empty() || assigned_users.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Name, description, or assigned_users cannot be empty".to_string(),
+        });
+    }
+
+    match TASK_STORAGE.with(|storage| {
+        let mut storage = storage.borrow_mut();
+        if let Some(task) = storage.get(&id) {
+            // Create a cloned copy of the task to update
+            let mut updated_task = task.clone();
+            // Update the task fields
+            updated_task.name = name;
+            updated_task.description = description;
+            updated_task.start_date = start_date;
+            updated_task.due_date = due_date;
+            updated_task.status = status;
+            updated_task.assigned_users = assigned_users;
+            // Replace the old task with the updated one
+            storage.insert(id, updated_task.clone());
+            Ok(updated_task)
+        } else {
+            Err(Error::NotFound {
+                msg: format!("Task with id={} not found", id),
+            })
+        }
+    }) {
+        Ok(task) => Ok(task),
+        Err(e) => Err(e),
+    }
+}
+
+#[ic_cdk::update]
+fn update_user(id: u64, name: String) -> Result<User, Error> {
+    // Ensure input fields are not empty
+    if name.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Name cannot be empty".to_string(),
+        });
+    }
+
+    match USER_STORAGE.with(|storage| {
+        let mut storage = storage.borrow_mut();
+        if let Some(user) = storage.get(&id) {
+            // Create a cloned copy of the user to update
+            let mut updated_user = user.clone();
+            // Update the user fields
+            updated_user.name = name;
+            // Replace the old user with the updated one
+            storage.insert(id, updated_user.clone());
+            Ok(updated_user)
+        } else {
+            Err(Error::NotFound {
+                msg: format!("User with id={} not found", id),
+            })
+        }
+    }) {
+        Ok(user) => Ok(user),
+        Err(e) => Err(e),
+    }
+}
+
+
+#[ic_cdk::update]
+fn delete_project(id: u64) -> Result<(), Error> {
+    match PROJECT_STORAGE.with(|storage| storage.borrow_mut().remove(&id)) {
+        Some(_) => Ok(()),
+        None => Err(Error::NotFound {
+            msg: format!("Project with id={} not found", id),
+        }),
+    }
+}
+
+
+#[ic_cdk::update]
+fn delete_task(id: u64) -> Result<(), Error> {
+    match TASK_STORAGE.with(|storage| storage.borrow_mut().remove(&id)) {
+        Some(_) => Ok(()),
+        None => Err(Error::NotFound {
+            msg: format!("Task with id={} not found", id),
+        }),
+    }
+}
+
 
 #[ic_cdk::update]
 fn delete_user(id: u64) -> Result<(), Error> {
@@ -315,61 +435,6 @@ fn get_task(id: u64) -> Result<Task, Error> {
     }
 }
 
-// Implement update operation for projects
-#[ic_cdk::update]
-fn update_project(id: u64, name: String, description: String, start_date: u64, due_date: u64) -> Result<Project, Error> {
-    match PROJECT_STORAGE.with(|storage| {
-        let mut storage = storage.borrow_mut();
-        if let Some(project) = storage.get(&id) {
-            // Create a cloned copy of the project to update
-            let mut updated_project = project.clone();
-            // Update the project fields
-            updated_project.name = name;
-            updated_project.description = description;
-            updated_project.start_date = start_date;
-            updated_project.due_date = due_date;
-            // Replace the old project with the updated one
-            storage.insert(id, updated_project.clone());
-            Ok(updated_project)
-        } else {
-            Err(Error::NotFound {
-                msg: format!("Project with id={} not found", id),
-            })
-        }
-    }) {
-        Ok(project) => Ok(project),
-        Err(e) => Err(e),
-    }
-}
-
-// Implement update operation for tasks
-#[ic_cdk::update]
-fn update_task(id: u64, name: String, description: String, start_date: u64, due_date: u64, status: TaskStatus, assigned_users: Vec<u64>) -> Result<Task, Error> {
-    match TASK_STORAGE.with(|storage| {
-        let mut storage = storage.borrow_mut();
-        if let Some(task) = storage.get(&id) {
-            // Create a cloned copy of the task to update
-            let mut updated_task = task.clone();
-            // Update the task fields
-            updated_task.name = name;
-            updated_task.description = description;
-            updated_task.start_date = start_date;
-            updated_task.due_date = due_date;
-            updated_task.status = status;
-            updated_task.assigned_users = assigned_users;
-            // Replace the old task with the updated one
-            storage.insert(id, updated_task.clone());
-            Ok(updated_task)
-        } else {
-            Err(Error::NotFound {
-                msg: format!("Task with id={} not found", id),
-            })
-        }
-    }) {
-        Ok(task) => Ok(task),
-        Err(e) => Err(e),
-    }
-}
 
 // Implement operation to change task status
 #[ic_cdk::update]
@@ -396,28 +461,6 @@ fn change_task_status(task_id: u64, status: TaskStatus, assigned_users: Vec<u64>
     }
 }
 
-#[ic_cdk::update]
-fn update_user(id: u64, name: String) -> Result<User, Error> {
-    match USER_STORAGE.with(|storage| {
-        let mut storage = storage.borrow_mut();
-        if let Some(user) = storage.get(&id) {
-            // Create a cloned copy of the user to update
-            let mut updated_user = user.clone();
-            // Update the user fields
-            updated_user.name = name;
-            // Replace the old user with the updated one
-            storage.insert(id, updated_user.clone());
-            Ok(updated_user)
-        } else {
-            Err(Error::NotFound {
-                msg: format!("User with id={} not found", id),
-            })
-        }
-    }) {
-        Ok(user) => Ok(user),
-        Err(e) => Err(e),
-    }
-}
 
 // Export the Candid interface
 ic_cdk::export_candid!();
